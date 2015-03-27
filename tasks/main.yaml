@@ -1,0 +1,89 @@
+---
+# Create docker directory
+- name: Create docker directory
+  file: path={{ playbook_dir }}/docker/docker-spark state=directory
+  tags:
+    - configuration
+
+# Create docker file
+- name: Create Spark Dockerfile
+  template: src=spark-dockerfile.j2 dest={{ playbook_dir }}/docker/docker-spark/Dockerfile
+  tags:
+    - configuration
+
+- name: Build Spark image
+  docker_image: docker_url=tcp://127.0.0.1:2375 path="{{ playbook_dir }}/docker/docker-spark" name="{{ spark_image_name }}" state="build"
+  tags:
+    - docker
+    - docker_build
+
+- name: Push Spark image to repo
+  shell: "docker push {{ spark_image_name }}"
+  tags:
+    - docker
+    - docker_push
+
+- name: Create Units directory
+  file: path={{ playbook_dir }}/units state=directory
+  tags:
+    - configuration
+
+# Select Spark Master
+- name: Gather fleet machines info
+  get_coreos_machines: tunnel={{ fleet_endpoint }}
+  register: fleetctl_hosts
+  tags:
+    - configuration
+    - coreos_sparkmaster
+
+- name: Find Spark Master host
+  choose_registry_machine: IPS="{{ item['IPS'] }}" IDS="{{ item['IDS'] }}"
+  register: sparkmaster_host
+  with_items:
+    - "{{ fleetctl_hosts['stdout'] }}"
+  tags:
+    - configuration
+    - coreos_sparkmaster
+  notify:
+    - Write Spark Master IP to coreos servers
+    - Write Spark Master IP locally
+
+# MASTER
+- name: Create Spark Master Units
+  template: src=spark-master.x.service.j2 dest={{ playbook_dir }}/units/spark-master.1.service
+  tags:
+    - configuration
+
+- name: Submit Spark Master units
+  shell: fleetctl --tunnel {{ fleet_endpoint }} submit {{ playbook_dir }}/units/spark-master.1.service
+  tags:
+    - fleet
+    - fleet_submit
+
+- name: Start Spark Master units
+  shell: sleep 5 && fleetctl --tunnel {{ fleet_endpoint }} start {{ playbook_dir }}units/spark-master.1.service
+  tags:
+    - fleet
+    - fleet_start
+
+# SLAVES
+- name: Create Spark Slave Units
+  template: src=spark-slave.x.service.j2 dest={{ playbook_dir }}/units/spark-slave.{{ item }}.service
+  with_sequence: count={{ sparkslave_instances_number }}
+  tags:
+    - configuration
+
+- name: Submit Spark Slave units
+  shell: fleetctl --tunnel {{ fleet_endpoint }} submit {{ playbook_dir }}/units/spark-slave.{{ item }}.service
+  with_sequence: count={{ sparkslave_instances_number }}
+  tags:
+    - fleet
+    - fleet_submit
+
+- name: Start Spark Slave units
+  shell: sleep 5 && fleetctl --tunnel {{ fleet_endpoint }} start {{ playbook_dir }}units/spark-slave.{{ item }}.service
+  with_sequence: count={{ sparkslave_instances_number }}
+  tags:
+    - fleet
+    - fleet_start
+

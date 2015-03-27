@@ -1,0 +1,8 @@
+---
+- name: Write Spark Master IP to coreos servers
+  shell: ssh {{ coreos_ssh_user }}@{{ hostvars[item]['ansible_ssh_host'] }} -p {{ hostvars[item]['ansible_ssh_port'] }} -i {{ coreos_ssh_key }} " if [ \$(grep {{ sparkmaster_hostname }} /etc/hosts | wc -l) -gt 0 ]; then sudo sed -i 's/.*{{ sparkmaster_hostname }}.*/{{ sparkmaster_host.results[0].IP }} {{ sparkmaster_hostname }}/g' /etc/hosts; else echo \"{{ sparkmaster_host.results[0].IP }} {{ sparkmaster_hostname }}\" | sudo tee --append /etc/hosts 1>/dev/null ;fi"
+  with_items:
+    - "{{ groups['coreos'] }}"
+
+- name: Write Spark Master IP locally
+  shell: if [ $(grep {{ sparkmaster_hostname }} /etc/hosts | wc -l) -gt 0 ]; then sudo sed -i 's/.*{{ sparkmaster_hostname }}.*/{{ sparkmaster_host.results[0].IP }} {{ sparkmaster_hostname }}/g' /etc/hosts; else echo "{{ sparkmaster_host.results[0].IP }} {{ sparkmaster_hostname }}" | sudo tee --append /etc/hosts 1>/dev/null ;fi

@@ -1,0 +1,12 @@
+[Unit]
+Description=Spark slave service
+
+[Service]
+EnvironmentFile=/etc/environment
+ExecStart=/bin/bash -c "/usr/bin/docker run --rm --net=\"host\" --name spark-slave -p 7077:7077 -p 7078:7078 -p 8080:8080 {{ spark_image_name }} /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://{{ sparkmaster_hostname }}:{{ sparkmaster_port }} --port 7078"
+ExecStop=/usr/bin/docker stop spark-slave
+ExecStopPost=/usr/bin/docker rm -f spark-slave
+
+[X-Fleet]
+Conflicts=spark-master.*.service
+Conflicts=spark-slave.*.service

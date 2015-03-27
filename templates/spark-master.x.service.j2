@@ -1,0 +1,11 @@
+[Unit]
+Description=Spark Master service
+
+[Service]
+EnvironmentFile=/etc/environment
+ExecStart=/bin/bash -c "/usr/bin/docker run --rm --net=\"host\" --name spark-master -p 7077:7077 -p 7078:7078 -p 8080:8080 {{ spark_image_name }} /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master --ip {{ sparkmaster_hostname }}"
+ExecStop=/usr/bin/docker stop spark-master
+ExecStopPost=/usr/bin/docker rm -f spark-master
+
+[X-Fleet]
+MachineID={{ sparkmaster_host.results[0].ID }}
