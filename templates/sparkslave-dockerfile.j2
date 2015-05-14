@@ -1,0 +1,12 @@
+FROM {{ spark_image_name }}
+MAINTAINER Pablo Torres <pablo.torres.t@gmail.com>
+
+#Add files
+COPY confd-watch-sparkslave /usr/local/bin/confd-watch
+RUN chmod +x /usr/local/bin/confd-watch
+
+EXPOSE 7077
+EXPOSE 7078
+EXPOSE 8080
+
+ENTRYPOINT ["/usr/local/bin/confd-watch"]

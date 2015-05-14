@@ -1,0 +1,21 @@
+#!/bin/bash
+
+APP="sparkslave"
+
+# Capture signals
+trap 'kill $(jobs -p); exit' EXIT SIGTERM SIGINT SIGQUIT
+
+# Fail hard and fast
+set -eo pipefail
+
+export ETCD_PORT=${ETCD_PORT:-4001}
+export HOST_IP=${HOST_IP:-127.0.0.1}
+export ETCD=$HOST_IP:$ETCD_PORT
+
+echo "[$APP] Booting container. ETCD: $ETCD, Host: $HOST_IP, Port: $PORT"
+
+# Start service
+echo "[$APP] Starting $APP service..."
+/var/lib/spark/spark-*/bin/spark-class org.apache.spark.deploy.worker.Worker spark://sparkmaster.spark.local:7100 --port 7078 &
+
+read

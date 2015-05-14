@@ -1,0 +1,39 @@
+[Unit]
+Description=Spark Master service
+Requires=etcd.service
+Requires=docker.service
+After=etcd.service
+After=docker.service
+
+[Service]
+KillMode=none
+TimeoutStartSec=360
+TimeoutStopSec=360
+EnvironmentFile=/etc/environment
+Environment="SPARKMASTER_NS_LOCAL=/skydns/local/spark/%p"
+Environment="SPARKMASTER_NS_LOCAL_i=/skydns/local/spark/%p"
+# Put the url as static. This should be improved
+Environment="SPARKMASTER_URL=%p.spark.local:%i"
+Environment="SPARKMASTER_NAME=/services/spark/%p"
+Environment="SPARKMASTER_NAME_i=/services/spark/%p/%i"
+ExecStartPre=/usr/bin/docker pull {{ sparkmaster_image_name }}
+ExecStartPre=-/usr/bin/docker rm %p%i
+ExecStartPre=/bin/bash -c '\
+	DNS=`/usr/bin/etcdctl get /skydns/ip` ; \
+	PORT1=%i ; \
+	PORT2=$((PORT1+1)) ; \
+	/usr/bin/docker create -it --name %p%i -p $PORT1:$PORT1 -p $PORT2:8080 --dns=$DNS --hostname=%p.spark.local -e HOST_IP=%p.spark.local -e PORT=%i {{ sparkmaster_image_name }} \
+	'
+ExecStart=/usr/bin/docker start -a %p%i
+ExecStartPost=/usr/bin/etcdctl set $SPARKMASTER_NS_LOCAL_i '{"host":"${COREOS_PUBLIC_IPV4}","port":%i}'
+ExecStartPost=/usr/bin/etcdctl set $SPARKMASTER_NAME_i $SPARKMASTER_URL
+ExecStop=/usr/bin/docker stop -t 60 %p%i
+ExecStopPost=/usr/bin/etcdctl rm $SPARKMASTER_NS_LOCAL_i
+ExecStopPost=/usr/bin/etcdctl rm $SPARKMASTER_NAME_i
+ExecStopPost=-/usr/bin/etcdctl rm --dir $SPARKMASTER_NS_LOCAL
+ExecStopPost=-/usr/bin/etcdctl rm --dir $SPARKMASTER_NAME
+ExecStopPost=-/usr/bin/docker rm -f %p%i
+Restart=on-failure
+
+[X-Fleet]
+Conflicts=*@%i.service

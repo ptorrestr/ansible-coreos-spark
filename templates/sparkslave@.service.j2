@@ -1,0 +1,35 @@
+[Unit]
+Description=Spark slave service
+After=docker.service
+After=etcd.service
+Requires=docker.service
+Requires=etcd.service
+
+[Service]
+KillMode=none
+TimeoutStartSec=360
+TimeoutStopSec=360
+EnvironmentFile=/etc/environment
+Environment="SPARKSLAVE_NS_LOCAL=/skydns/local/spark/%p"
+Environment="SPARKSLAVE_NS_LOCAL_i=/skydns/local/spark/%p/%i"
+Environment="SPARKSLAVE_URL=%i.%p.spark.local:%i"
+Environment="SPARKSLAVE_NAME=/services/spark/%p"
+Environment="SPARKSLAVE_NAME_i=/services/spark/%p/%i"
+ExecStartPre=/usr/bin/docker pull {{ sparkslave_image_name }}
+ExecStartPre=-/usr/bin/docker rm -f %p%i
+ExecStartPre=/bin/bash -c '\
+	DNS=`/usr/bin/etcdctl get /skydns/ip` ; \
+	/usr/bin/docker create -it --name %p%i -p $PORT1:7077 -p $PORT2:7078 -p $PORT3:8080 --dns=$DNS -e HOST_IP=${COREOS_PUBLIC_IPV4} -e PORT=%i {{ sparkslave_image_name }} ; \
+	'
+ExecStart=/usr/bin/docker start -a %p%i
+ExecStartPost=/usr/bin/etcdctl set $SPARKSLAVE_NS_LOCAL_i '{"host":"${COREOS_PUBLIC_IPV4}","port":%i}'
+ExecStartPost=/usr/bin/etcdctl set $SPARKSLAVE_NAME_i $SPARKSLAVE_URL
+ExecStop=/usr/bin/docker stop -t 60 %p%i
+ExecStopPost=/usr/bin/etcdctl rm $SPARKSLAVE_NS_LOCAL_i
+ExecStopPost=/usr/bin/etcdctl rm $SPARKSLAVE_NAME_i
+ExecStopPost=-/usr/bin/etcdctl rm --dir $SPARKSLAVE_NS_LOCAL
+ExecStopPost=-/usr/bin/etcdctl rm --dir $SPARKSLAVE_NAME
+ExecStopPost=-/usr/bin/docker rm -f %p%i
+
+[X-Fleet]
+Conflicts=*@%i.service
